@@ -1,5 +1,5 @@
 # External Secrets Migration Tool
-A Python Class to aid in simplifying the process of migrating Kubernetes secrets to External Secrets Manager (ESO). All you need is a JSON containing the namespaces and secrets within those namespaces. This tool was written one afternoon to help migrate secrets originally created by Kubeseal to use AWS Secrets Manager provider for ESO. Currently only supports AWS Secrets Manager Provider. 
+A Python Class to aid in simplifying the process of migrating Kubernetes secrets to [External Secrets Manager](https://external-secrets.io/) (ESO). All you need is a JSON containing the namespaces and secrets within those namespaces. This tool was written one afternoon to help migrate secrets originally created by Kubeseal to use AWS Secrets Manager provider for ESO. Currently only supports AWS Secrets Manager Provider. 
 
 This tool helps with the following:
 
@@ -60,6 +60,8 @@ from k8s_secrets import ESOMigrateAWSSecretStore
 migrate_secrets = ESOMigrateAWSSecretStore.migrate_eso(secrets_dictionary=secrets)
 
 ```
+
+5) Check the `manifests/` directory for external secret yaml files and AWS Secrets Manager for newly created Secrets.
 
 ## Other Usage
 As mentioned there are also ways of helping generate the dictionary such as finding namespaces and secrets. See the examples directory for other uses.  
