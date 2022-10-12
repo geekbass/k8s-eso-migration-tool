@@ -7,15 +7,21 @@ from kubernetes import client, config
 
 
 class ESOMigrateAWSSecretStore:
-    secret_manager_prefix = os.getenv('SECRETS_MANAGER_PREFIX', 'k8s')
+    cluster_prefix = os.getenv('CLUSTER_PREFIX', 'k8s')
     cluster_secret_store_name = os.getenv('CLUSTER_SECRET_STORE_NAME', 'cluster-secret-store')
     refresh_interval = os.getenv('REFRESH_INTERVAL', '1m')
+    manifest_folder = os.getenv('MANIFEST_FOLDER', 'manifests')
 
+    # Load Boto3 client and K8s config
     client = boto3.client('secretsmanager')
     config.load_config()
 
     @classmethod
-    def get_namespaces(cls):
+    def get_namespaces(cls) -> list:
+        """
+        Helps retrieve a list of namespaces from the cluster
+        :return:
+        """
         v1 = client.CoreV1Api()
 
         k8s_namespace = []
@@ -27,7 +33,12 @@ class ESOMigrateAWSSecretStore:
         return k8s_namespace
 
     @classmethod
-    def get_namespace_secrets(cls, namespaces):
+    def get_namespace_secrets(cls, namespaces: list) -> dict:
+        """
+        Helps return a dictionary of all namespaced secrets
+        :param namespaces:
+        :return:
+        """
 
         v1 = client.CoreV1Api()
 
@@ -41,7 +52,13 @@ class ESOMigrateAWSSecretStore:
         return k8s_secrets
 
     @classmethod
-    def migrate_eso(cls, secrets_dictionary):
+    def migrate_eso(cls, secrets_dictionary: dict):
+        """
+        Takes a dictionary of namespaced secrets and decodes the value of each secret key and calls the write_aws_secret
+        and generate_external_secrets classmethods
+        :param secrets_dictionary:
+        :return:
+        """
 
         v1 = client.CoreV1Api()
 
@@ -61,19 +78,32 @@ class ESOMigrateAWSSecretStore:
             cls.generate_external_secrets(secret_name=k8s_secret_name, namespace_name=k8s_ns)
 
     @classmethod
-    def write_aws_secret(cls, secret_string, name):
+    def write_aws_secret(cls, secret_string: str, name: str):
+        """
+        Creates a secret inside an AWS Secret within AWS Secrets Manager
+        :param secret_string:
+        :param name:
+        :return:
+        """
 
         new_secret_string = json.dumps(secret_string)
 
         response = cls.client.create_secret(
-            Name='{}-{}'.format(cls.secret_manager_prefix, name),
+            Name='{}-{}'.format(cls.cluster_prefix, name),
+            Description='K8s Secret {} for ESO on {}'.format(name, cls.cluster_prefix),
             SecretString='{}'.format(new_secret_string)
         )
 
         return response
 
     @classmethod
-    def generate_external_secrets(cls, secret_name, namespace_name):
+    def generate_external_secrets(cls, secret_name: str, namespace_name: str):
+        """
+        Creates an external secrets K8s manifest file from a template file
+        :param secret_name:
+        :param namespace_name:
+        :return:
+        """
 
         environment = Environment(loader=FileSystemLoader("./"))
         template = environment.get_template("external-secret_tmpl.j2")
@@ -81,12 +111,12 @@ class ESOMigrateAWSSecretStore:
         content = template.render(
             secret_name=secret_name,
             namespace_name=namespace_name,
-            secret_manager_prefix=cls.secret_manager_prefix,
+            secret_manager_prefix=cls.cluster_prefix,
             refresh_interval=cls.refresh_interval,
             cluster_secret_store_name=cls.cluster_secret_store_name
         )
 
-        path = "manifests/{}".format(namespace_name)
+        path = "{}/{}".format(cls.manifest_folder, namespace_name)
         exist = os.path.exists(path)
         if not exist:
             os.makedirs(path)
